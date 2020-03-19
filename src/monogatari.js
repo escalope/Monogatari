@@ -409,6 +409,53 @@ class Monogatari {
 		}
 	}
 
+  static geolocations(o1){
+    if (o1 !== null) {
+      // const identifiers = Object.keys (object);
+      // for (const id of identifiers) {
+      // 	this.character (id, object[id]);
+      // }
+      this._geolocations = merge (this._geolocations, o1);
+    } else {
+      return this._geolocations;
+    }
+  }
+
+  static geolocation(id){
+    return this._geolocations[id];
+  }
+
+  static customForms(o1){
+    if (o1 !== null) {
+      // const identifiers = Object.keys (object);
+      // for (const id of identifiers) {
+      // 	this.character (id, object[id]);
+      // }
+      this._forms = merge (this._forms, o1);
+    } else {
+      return this._forms;
+    }
+  }
+
+  static customForm(id){
+    return this._forms[id];
+  }
+
+  static setFormResult(id,result){
+    this._formsResult[id]=result;
+  }
+  static getFormResult(id){
+    return this._formsResult[id];
+  }
+
+  static setContentToSend(content){
+    this._contenttosend=content;
+  }
+
+  static getContentToSend(){
+    return this._contenttosend;
+  }
+
 	static characters (object = null) {
 		if (object !== null) {
 			// const identifiers = Object.keys (object);
@@ -420,6 +467,8 @@ class Monogatari {
 			return this._characters;
 		}
 	}
+
+
 
 	static character (id, object = null) {
 		if (object !== null) {
@@ -2622,6 +2671,16 @@ class Monogatari {
 		return element;
 	}
 
+  static lastActionFailed () {
+    this._lastActionFailed=true;
+  }
+
+  static checkAndResetIfLastActionFailed () {
+    var result=this._lastActionFailed;
+    this._lastActionFailed=false;
+    return result;
+  }
+
 	static on (event, target, callback) {
 		return this.element ().on (event, target, callback);
 	}
@@ -2650,6 +2709,20 @@ class Monogatari {
 			$_ready (() => dispatchEvent (event));
 		}
 	}
+
+  static sendEvent(eventName) {
+    this._rendevouz.queue.push(eventName);
+  }
+
+  static pollEvent(eventName) {
+    if (this._rendevouz.queue.includes(eventName)){
+      const index=this._rendevouz.queue.indexOf(eventName);
+      delete this._rendevouz.queue[index];
+      return true;
+    } else {
+      return false;
+    }
+  }
 
 	static init (selector = '#monogatari') {
 		this._selector = selector;
@@ -2771,6 +2844,9 @@ Monogatari._translations = {};
 Monogatari._script = {};
 Monogatari._characters = {};
 Monogatari._storage = {};
+Monogatari._geolocations = {};
+Monogatari._forms={};
+Monogatari._formsResult={};
 
 Monogatari.Storage = new Space ();
 
@@ -2792,6 +2868,10 @@ Monogatari._history = {
 	scene: [],
 	label: []
 };
+
+Monogatari._rendevouz={
+  queue:[]
+}
 
 Monogatari._globals = {
 
@@ -3081,6 +3161,8 @@ Monogatari._templates = {};
 Monogatari._upgrade = {};
 
 Monogatari._temp = {};
+
+Monogatari._lastActionFailed=false;
 
 Monogatari.Storage = new Space ();
 

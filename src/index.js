@@ -169,10 +169,13 @@ import Canvas from './actions/Canvas.js';
 import Choice from './actions/Choice.js';
 import Clear from './actions/Clear.js';
 import Conditional from './actions/Conditional.js';
+import ConditionalGeolocation from './actions/ConditionalGeolocation.js';
 import Dialog from './actions/Dialog.js';
 import End from './actions/End.js';
 import Function from './actions/Function.js';
+import CustomForm from './actions/CustomForm.js';
 import Gallery from './actions/Gallery.js';
+import Geolocate from './actions/Geolocate.js';
 import HideCanvas from './actions/HideCanvas.js';
 import HideCharacter from './actions/HideCharacter.js';
 import HideImage from './actions/HideImage.js';
@@ -180,6 +183,8 @@ import HideParticles from './actions/HideParticles.js';
 import HideVideo from './actions/HideVideo.js';
 import InputModal from './actions/InputModal.js';
 import Jump from './actions/Jump.js';
+import Call from './actions/Call.js';
+import Return from './actions/Return.js';
 import Message from './actions/Message.js';
 import Next from './actions/Next.js';
 import Notify from './actions/Notify.js';
@@ -187,6 +192,7 @@ import Particles from './actions/Particles.js';
 import Pause from './actions/Pause.js';
 import Play from './actions/Play.js';
 import Scene from './actions/Scene.js';
+import SendAction from './actions/SendAction.js';
 import ShowBackground from './actions/ShowBackground.js';
 import ShowCharacter from './actions/ShowCharacter.js';
 import ShowImage from './actions/ShowImage.js';
@@ -194,15 +200,19 @@ import Stop from './actions/Stop.js';
 import Vibrate from './actions/Vibrate.js';
 import Video from './actions/Video.js';
 import Wait from './actions/Wait.js';
+import WaitEvent from './actions/WaitEvent.js';
 
 Monogatari._actions = [
 	Canvas,
 	Choice,
 	Clear,
 	Conditional,
+  ConditionalGeolocation,
 	End,
+  CustomForm,
 	Function,
 	Gallery,
+  Geolocate,
 	HideCanvas,
 	HideCharacter,
 	HideImage,
@@ -210,12 +220,15 @@ Monogatari._actions = [
 	HideVideo,
 	InputModal,
 	Jump,
+	Call,
+	Return,
 	Message,
 	Next,
 	Notify,
 	Particles,
 	Pause,
 	Play,
+  SendAction,
 	Scene,
 	ShowBackground,
 	ShowCharacter,
@@ -224,6 +237,7 @@ Monogatari._actions = [
 	Vibrate,
 	Video,
 	Wait,
+  WaitEvent,
 
 	// Dialog must always go last
 	Dialog,
