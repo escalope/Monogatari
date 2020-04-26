@@ -33,3 +33,7 @@ release
 dist/certs
 cypress/videos/
 cypress/screenshots/
+
+dist/engine/core/monogatari.js.map
+dist/engine/core/monogatari.js
+dist/engine/core/monogatari.css
