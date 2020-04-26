@@ -27,7 +27,7 @@ export class Notify extends Action {
 
 			// Finally check if the given notification exists in the object
 			if (typeof Notify.notifications (name) !== 'undefined') {
-				this.notification = Notify.notifications (name);
+				this.notification = Object.assign ({}, Notify.notifications (name));
 
 				if (typeof time !== 'undefined') {
 					if (!isNaN (time)) {
@@ -106,7 +106,7 @@ export class Notify extends Action {
 						}
 					});
 				} else {
-					reject ();
+					reject ('The permission to display notifications was denied by the user.');
 				}
 			});
 		}
@@ -115,6 +115,12 @@ export class Notify extends Action {
 	}
 
 	apply () {
+		for (const key of Object.keys (this.notification)) {
+			if (typeof this.notification[key] === 'string') {
+				this.notification[key] = this.engine.replaceVariables (this.notification[key]);
+			}
+		}
+
 		const notification = new Notification (this.notification.title, this.notification);
 
 		if (typeof this.time !== 'undefined') {

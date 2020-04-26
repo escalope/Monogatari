@@ -32,6 +32,7 @@ import './../node_modules/@fortawesome/fontawesome-free/js/all.js';
 
 export * from '@aegis-framework/artemis';
 export * from 'typed.js';
+export * from 'random-js';
 
 import 'particles.js';
 
@@ -121,6 +122,7 @@ import SettingsScreen from './components/settings-screen';
 import SlotContainer from './components/slot-container';
 import TextBox from './components/text-box';
 import TextInput from './components/text-input';
+import TimerDisplay from './components/timer-display';
 import VisualNovel from './components/visual-novel';
 
 Monogatari._components = [
@@ -144,6 +146,7 @@ Monogatari._components = [
 	SlotContainer,
 	TextBox,
 	TextInput,
+	TimerDisplay,
 	VisualNovel,
 ];
 
@@ -190,6 +193,7 @@ import Next from './actions/Next.js';
 import Notify from './actions/Notify.js';
 import Particles from './actions/Particles.js';
 import Pause from './actions/Pause.js';
+import Placeholder from './actions/Placeholder';
 import Play from './actions/Play.js';
 import Scene from './actions/Scene.js';
 import SendAction from './actions/SendAction.js';
@@ -228,8 +232,9 @@ Monogatari._actions = [
 	Particles,
 	Pause,
 	Play,
-  SendAction,
+	Placeholder,
 	Scene,
+	SendAction,
 	ShowBackground,
 	ShowCharacter,
 	ShowImage,

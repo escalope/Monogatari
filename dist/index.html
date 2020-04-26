@@ -8,6 +8,7 @@
 
 		<meta charset="UTF-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, maximum-scale=1">
+		<meta http-equiv="Content-Security-Policy" content="default-src 'self' https:; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; script-src 'self' 'unsafe-eval'">
 		<meta name="description" content=""> <!--Page description. No longer than 155 characters.-->
 		<meta name="keywords" content="">
 		<meta name="author" content=""> <!--Name of the author.-->
@@ -105,23 +106,15 @@
 
 		<div id="monogatari">
 			<visual-novel>
-
 				<loading-screen></loading-screen>
 				<main-screen>
-
 					<main-menu></main-menu>
-
 				</main-screen>
-
 				<game-screen>
-
 					<dialog-log></dialog-log>
-
 					<text-box></text-box>
-
-					<!--quick-menu></quick-menu-->
+					<quick-menu></quick-menu>
 				</game-screen>
-
 				<gallery-screen></gallery-screen>
 				<credits-screen></credits-screen>
 				<load-screen></load-screen>
@@ -130,7 +123,6 @@
 				<help-screen></help-screen>
 			</visual-novel>
 		</div>
-
 	</body>
 
 </html>

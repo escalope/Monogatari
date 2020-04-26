@@ -126,11 +126,13 @@ class SettingsScreen extends ScreenComponent {
 			}
 
 			// Set the electron quit handler.
-			if (Platform.electron () || (typeof window.ipcRendererReceive === 'function' && typeof window.ipcRendererSend === 'function')) {
+			if (Platform.electron () && (typeof window.ipcRendererReceive === 'function' && typeof window.ipcRendererSend === 'function')) {
 				this.electron ();
 			} else {
 				this.element ().find ('[data-platform="electron"]').remove ();
 			}
+
+			this.element ().find ('[data-action="set-text-speed"]').value (this.engine.setting ('maxTextSpeed') - this.engine.preference ('TextSpeed'));
 		});
 
 		// Disable audio settings in iOS since they are not supported

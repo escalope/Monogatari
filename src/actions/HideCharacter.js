@@ -40,7 +40,7 @@ export class HideCharacter extends Action {
 
 	willApply () {
 
-		if (!this.element) {
+		if (!this.element.exists ()) {
 			FancyError.show (
 				`The character "${this.asset}" can't hide because it's not being shown`,
 				`Monogatari attempted to hide the character "${this.asset}" but it was not being shown.`,
@@ -119,8 +119,15 @@ export class HideCharacter extends Action {
 	}
 
 	revert () {
-		this.engine.run (this.engine.history ('character').pop (), false);
-		return Promise.resolve ();
+		for (let i = this.engine.history ('character').length - 1; i >= 0; i--) {
+			const last = this.engine.history ('character')[i];
+			const [show, character, asset, name] = last.split (' ');
+
+			if (asset === this.asset) {
+				return this.engine.run (last, false);
+			}
+		}
+		return Promise.reject ();
 	}
 
 	didRevert () {

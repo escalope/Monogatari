@@ -12,9 +12,11 @@ class TextInput extends Component {
 		this.props = {
 			text: '',
 			warning: '',
+			actionString: 'OK',
 			onSubmit: () => {},
 			validate: () => {},
 			callback: () => {},
+			classes: ''
 		};
 	}
 
@@ -38,6 +40,15 @@ class TextInput extends Component {
 
 	willMount () {
 		this.classList.add ('modal', 'modal--active');
+
+		// Check if a list of classes has been defined and if the list is not empty
+		if (typeof this.props.classes === 'string' && this.props.classes !== '') {
+			this.props.classes.split (' ').forEach ((className) => {
+				if (className) {
+					this.classList.add (className);
+				}
+			});
+		}
 		return Promise.resolve ();
 	}
 
@@ -81,7 +92,7 @@ class TextInput extends Component {
 				<input data-content="field" type="text">
 				<small data-content="warning" class="block"></small>
 				<div>
-					<button type='submit'>${this.engine.string ('OK')}</button>
+					<button type='submit'>${this.engine.string (this.props.actionString)}</button>
 				</div>
 			<form>
 		`;

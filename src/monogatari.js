@@ -4,6 +4,7 @@ import mousetrap from 'mousetrap';
 import { FancyError } from './lib/FancyError';
 import merge  from 'deeply';
 import * as package_json from './../package.json';
+import { Random, browserCrypto } from 'random-js';
 
 /**
  * Every Monogatari Game is composed mainly of the following items:
@@ -252,7 +253,20 @@ class Monogatari {
 			if (typeof object === 'string') {
 				return this._state[object];
 			} else {
-				this._state = merge (this._state, object);
+				const oldState = Object.assign ({}, this._state);
+				const newState = merge (this._state, object);
+
+				this.trigger ('willUpdateState', {
+					oldState,
+					newState
+				});
+
+				this._state = newState;
+
+				this.trigger ('didUpdateState', {
+					oldState,
+					newState: this._state
+				});
 			}
 		} else {
 			return this._state;
@@ -316,8 +330,37 @@ class Monogatari {
 	 * component must have an unique ID.
 	 */
 	static registerComponent (component) {
+		const alreadyRegistered = this._components.findIndex (c => c.tag === component.tag) > -1;
+
+		if (typeof window.customElements.get (component.tag) !== 'undefined') {
+			FancyError.show (
+				`Unable to register component "${component.tag}"`,
+				'Monogatari attempted to register a component but another component had already been registered for the same tag.',
+				{
+					'Component / Tag': component,
+					'Help': {
+						'_': 'Once a component for a tag has been registered and the setup has completed, it can not be replaced or removed. Try removing the conflicting component first:',
+						'_1': `
+							<pre>
+								<code class='language-javascript'>
+									monogatari.unregisterComponent ('${component.tag}')
+								</code>
+							</pre>
+						`,
+					}
+				}
+			);
+		}
+
 		component.engine = this;
-		window.customElements.define (component.tag, component);
+
+		if (alreadyRegistered && !this.global ('_didSetup')) {
+			// Remove the previous one
+			this.unregisterComponent (component.tag);
+		} else if (!alreadyRegistered && this.global ('_didSetup')) {
+			window.customElements.define (component.tag, component);
+		}
+
 		this._components.push (component);
 	}
 
@@ -330,7 +373,21 @@ class Monogatari {
 	 * each component must have an unique ID.
 	 */
 	static unregisterComponent (component) {
-		this._components = this._components.filter ((c) => c.tag.toLowerCase() !== component.toLowerCase());
+		if (!this.global ('_didSetup')) {
+			this._components = this._components.filter ((c) => c.tag.toLowerCase() !== component.toLowerCase());
+		} else {
+			FancyError.show (
+				`Unable to unregister component "${component}"`,
+				'Monogatari attempted to unregister a component but the setup had already happened.',
+				{
+					'Component': component,
+					'Help': {
+						'_': 'Components can only be unregistered before the setup step is completed.',
+						'_1': 'Try performing this action before the <code class="language-javascript">monogatari.init ()</code> function is called.'
+					}
+				}
+			);
+		}
 	}
 
 	/**
@@ -752,6 +809,31 @@ class Monogatari {
 		}
 	}
 
+	/**
+	 * Placeholders. Saves up an action (any kind of action) for later use within
+	 * the game in a key-value manner.
+	 *
+	 * @param {string} name - The name with which the action will be saved and later used
+	 * @param {any} value - The value (an action) to save up
+	 *
+	 * @returns {(any|void)} - The value of an action given its name, the whole
+	 * object if both params are missing and void if used for assigning the value.
+	 *
+	 */
+	static $ (name, value) {
+		if (typeof name === 'string') {
+			if (typeof value !== 'undefined') {
+				this._$[name] = value;
+			} else {
+				return this._$[name];
+			}
+		} else if (typeof name === 'object') {
+			this._$ = Object.assign ({}, this._$, name);
+		} else if (typeof name === 'undefined') {
+			return this._$;
+		}
+	}
+
 	static globals (object = null) {
 		if (object !== null) {
 			this._globals = merge (this._globals, object);
@@ -866,6 +948,9 @@ class Monogatari {
 			for (const category of Object.keys (this.assets ())) {
 				// Iterate over every key on each category
 				for (const asset of Object.values (this.assets (category))) {
+					if (typeof asset !== 'string') {
+						continue;
+					}
 					// Get the directory from where to load this asset
 					const directory = `${this.setting ('AssetsPath').root}/${this.setting ('AssetsPath')[category]}`;
 
@@ -905,6 +990,9 @@ class Monogatari {
 
 				if (typeof character.sprites !== 'undefined') {
 					for (const image of Object.values (character.sprites)) {
+						if (typeof image !== 'string') {
+							continue;
+						}
 						promises.push (Preload.image (`${directory}${image}`).then (() => {
 							this.trigger ('assetLoaded', {
 								name: image,
@@ -917,6 +1005,9 @@ class Monogatari {
 
 				if (typeof character.expressions !== 'undefined') {
 					for (const image of Object.values (character.expressions)) {
+						if (typeof image !== 'string') {
+							continue;
+						}
 						promises.push (Preload.image (`${directory}${image}`).then (() => {
 							this.trigger ('assetLoaded', {
 								name: image,
@@ -927,7 +1018,7 @@ class Monogatari {
 					}
 				}
 
-				if (typeof character.default_expression !== 'undefined') {
+				if (typeof character.default_expression === 'string') {
 					promises.push (Preload.image (`${directory}${character.default_expression}`).then (() => {
 						this.trigger ('assetLoaded', {
 							name: character.default_expression,
@@ -1194,10 +1285,20 @@ class Monogatari {
 					this.global ('_engine_block', false);
 					resolve ();
 				}).catch (() => {
+					this.global ('_engine_block', false);
 					// The game could not be reverted, either because an
 					// action prevented it or because there are no statements
 					// left to revert to.
-					resolve ();
+
+					if (this.state ('step') > 0) {
+						this.state ({
+							step: this.state ('step') - 1
+						});
+					}
+
+					this.proceed ().then (() => {
+						resolve ();
+					});
 				});
 			}, 0);
 		});
@@ -1356,16 +1457,21 @@ class Monogatari {
 
 		for (const listener of this._listeners) {
 			if (listener.name === name) {
-				promises.push (this.assertAsync (listener.callback , Monogatari, [element, event]));
+				promises.push (Util.callAsync (listener.callback , Monogatari, element, event).then ((data) => {
+					if (data) {
+						return Promise.resolve ();
+					}
+					return Promise.reject ();
+				}));
 				this.debug.debug ('Running Listener', name);
 			}
 		}
 
-		Promise.all (promises).catch (() => {
+		Promise.all (promises).catch ((e) => {
 			event.stopImmediatePropagation ();
 			event.stopPropagation ();
 			event.preventDefault ();
-			this.debug.debug ('Listener Event Propagation Stopped');
+			this.debug.debug ('Listener Event Propagation Stopped', e);
 		});
 	}
 
@@ -1394,161 +1500,177 @@ class Monogatari {
 	 */
 	static revert (statement = null, shouldAdvance = true, shouldStepBack = true) {
 
-		this.debug.groupCollapsed ('Revert Cycle');
+		const before = [];
 
-		// Check if we have steps behind us to revert to. If there aren't, then
-		// we can't revert since we are already at the first statement.
-		let actionToRevert = null;
-
-		if (statement !== null) {
-			actionToRevert = statement;
-		} else if (this.state ('step') >= 1) {
-			actionToRevert = this.label ()[this.state ('step') - 1];
-		} else {
-			const jump = [...this.history ('jump')].reverse ().find (o => {
-				return o.destination.label === this.state ('label') && o.destination.step === 0;
-			});
-
-			if (typeof jump !== 'undefined') {
-				this.state ({
-					label: jump.source.label,
-					step: jump.source.step
-				});
-				actionToRevert = this.label ()[this.state ('step')];
-				this.debug.debug ('Will revert to previous label.');
-			} else {
-				this.debug.debug ('Will not revert since this is the beginning of the game.');
-			}
+		for (const action of this.actions ()) {
+			before.push (action.beforeRevert ({ advance: shouldAdvance, step: shouldStepBack }));
 		}
 
-		this.debug.debug ('Reverting Action', actionToRevert);
+		return Promise.all (before).then (() => {
+			this.debug.groupCollapsed ('Revert Cycle');
 
-		if (actionToRevert !== null) {
+			// Check if we have steps behind us to revert to. If there aren't, then
+			// we can't revert since we are already at the first statement.
+			let actionToRevert = null;
 
-			let interpolatedStatement = null;
+			if (statement !== null) {
+				actionToRevert = statement;
+			} else if (this.state ('step') >= 1) {
+				actionToRevert = this.label ()[this.state ('step') - 1];
+			} else {
+				const jump = [...this.history ('jump')].reverse ().find (o => {
+					return o.destination.label === this.state ('label') && o.destination.step === 0;
+				});
 
-			if (typeof actionToRevert === 'string') {
-				interpolatedStatement = this.replaceVariables (actionToRevert).split (' ');
+				if (typeof jump !== 'undefined') {
+					this.state ({
+						label: jump.source.label,
+						step: jump.source.step
+					});
+					actionToRevert = this.label ()[this.state ('step')];
+					this.debug.debug ('Will revert to previous label.');
+				} else {
+					this.debug.debug ('Will not revert since this is the beginning of the game.');
+				}
 			}
 
-			// Iterate over all the registered actions to find one that matches with
-			// the statement to revert.
-			for (const action of this.actions ()) {
-				let actionStatement = actionToRevert;
-				let matches = false;
+			this.debug.debug ('Reverting Action', actionToRevert);
 
-				// Use the correct matching function (matchString or matchObject)
-				// depending on the type of the current statement. If the statement
-				// is a pure js function, it won't be reverted since we don't
-				// know what to do to revert it.
-				if (typeof actionStatement === 'string') {
+			if (actionToRevert !== null) {
 
-					// Split the statement into an array using the space separations
-					actionStatement = interpolatedStatement;
+				let interpolatedStatement = null;
 
-					// Check if it matches using the matchString method
-					matches = action.matchString (actionStatement);
-				} else if (typeof actionStatement === 'object' && actionStatement !== null) {
-					// Check if it matches using the matchObject method
-					matches = action.matchObject (actionStatement);
+				if (typeof actionToRevert === 'string') {
+					interpolatedStatement = this.replaceVariables (actionToRevert).split (' ');
 				}
 
-				// Check if the statement matched any of the registered actions
-				if (matches === true) {
-					// Create an instance of the action and initialize it with the
-					// current statement
-					const act = new action (actionStatement);
+				// Iterate over all the registered actions to find one that matches with
+				// the statement to revert.
+				for (const action of this.actions ()) {
+					let actionStatement = actionToRevert;
+					let matches = false;
 
-					// The original statement is set just in case the action needs
-					// access to it
-					act._setStatement (actionToRevert);
+					// Use the correct matching function (matchString or matchObject)
+					// depending on the type of the current statement. If the statement
+					// is a pure js function, it won't be reverted since we don't
+					// know what to do to revert it.
+					if (typeof actionStatement === 'string') {
 
-					// The current cycle is also set just in case the action needs to
-					// know what cycle it's currently being performed.
-					act._setCycle ('Revert');
+						// Split the statement into an array using the space separations
+						actionStatement = interpolatedStatement;
 
-					// Monogatari is set as the context of the action so that it can
-					// access all its functionalities
-					act.setContext (Monogatari);
+						// Check if it matches using the matchString method
+						matches = action.matchString (actionStatement);
+					} else if (typeof actionStatement === 'object' && actionStatement !== null) {
+						// Check if it matches using the matchObject method
+						matches = action.matchObject (actionStatement);
+					}
 
-					this.trigger ('willRevertAction', {
-						action: act
-					});
+					// Check if the statement matched any of the registered actions
+					if (matches === true) {
+						// Create an instance of the action and initialize it with the
+						// current statement
+						const act = new action (actionStatement);
 
-					// Run the willRevert method of the action first. This method
-					// is usually used to tell whether an action can be reverted
-					// or not.
-					return act.willRevert ().then (() => {
-						this.debug.debug ('Action Will Revert');
-						// If it can be reverted, then run the revert method
-						return act.revert ().then (() => {
-							this.debug.debug ('Action Reverting');
-							// If the reversion was successful, run the didRevert
-							// function. The action will return a boolean (shouldContinue)
-							// specifying if the game should go ahead and revert
-							// the previous statement as well or if it should
-							// wait instead
-							return act.didRevert ().then (({ advance, step }) => {
-								this.debug.debug ('Action Did Revert');
-								// Since we reverted correctly, the step should
-								// go back.
-								if (step === true && shouldStepBack === true) {
-									this.state ({
-										step: this.state ('step') - 1
-									});
-								}
+						// The original statement is set just in case the action needs
+						// access to it
+						act._setStatement (actionToRevert);
 
-								this.trigger ('didRevertAction', {
-									action: act
-								});
+						// The current cycle is also set just in case the action needs to
+						// know what cycle it's currently being performed.
+						act._setCycle ('Revert');
 
-								// Revert the previous statement if the action
-								// told us to.
-								if (advance === true && shouldAdvance === true) {
-									// Clear the Stack using a Time Out instead
-									// of calling the function directly, preventing
-									// an Overflow
-									setTimeout ((...params) => {
-										this.revert.call (Monogatari, ...params);
-									}, 0);
-								}
+						// Monogatari is set as the context of the action so that it can
+						// access all its functionalities
+						act.setContext (Monogatari);
 
-								this.debug.trace ();
-								this.debug.groupEnd ();
-
-							});
+						this.trigger ('willRevertAction', {
+							action: act
 						});
-					}).catch ((e) => {
-						if (typeof e === 'object' || typeof e === 'string') {
-							console.error (e);
-						}
-						// Clear the Stack using a Time Out instead of calling
-						// the function directly, preventing an Overflow
-						setTimeout ((...params) => {
-							this.run.call (Monogatari, ...params);
-						}, 0, this.label ()[this.state ('step')]);
 
-						this.debug.trace ();
-						this.debug.groupEnd ();
+						// Run the willRevert method of the action first. This method
+						// is usually used to tell whether an action can be reverted
+						// or not.
+						return act.willRevert ().then (() => {
+							this.debug.debug ('Action Will Revert');
+							// If it can be reverted, then run the revert method
+							return act.revert ().then (() => {
+								this.debug.debug ('Action Reverting');
+								// If the reversion was successful, run the didRevert
+								// function. The action will return a boolean (shouldContinue)
+								// specifying if the game should go ahead and revert
+								// the previous statement as well or if it should
+								// wait instead
+								return act.didRevert ().then (({ advance, step }) => {
+									this.debug.debug ('Action Did Revert');
 
-						return Promise.resolve ();
-					});
+									this.trigger ('didRevertAction', {
+										action: act
+									});
+
+									const promises = [];
+
+									for (const action of this.actions ()) {
+										promises.push (action.afterRevert ({ advance, step }));
+									}
+
+									return Promise.all (promises).then (() => {
+										// Since we reverted correctly, the step should
+										// go back.
+										if (step === true && shouldStepBack === true) {
+											this.state ({
+												step: this.state ('step') - 1
+											});
+										}
+										// Revert the previous statement if the action
+										// told us to.
+										if (advance === true && shouldAdvance === true) {
+											// Clear the Stack using a Time Out instead
+											// of calling the function directly, preventing
+											// an Overflow
+											setTimeout ((...params) => {
+												this.revert.call (Monogatari, ...params);
+											}, 0);
+										}
+
+										this.debug.trace ();
+										this.debug.groupEnd ();
+										return Promise.resolve ({ advance, step });
+									});
+								});
+							});
+						}).catch ((e) => {
+							if (typeof e === 'object' || typeof e === 'string') {
+								console.error (e);
+							}
+							// Clear the Stack using a Time Out instead of calling
+							// the function directly, preventing an Overflow
+							setTimeout ((...params) => {
+								this.run.call (Monogatari, ...params);
+							}, 0, this.label ()[this.state ('step')]);
+
+							this.debug.trace ();
+							this.debug.groupEnd ();
+
+							return Promise.resolve ();
+						});
+					}
 				}
+			} else {
+				// Clear the Stack using a Time Out instead of calling
+				// the function directly, preventing an Overflow
+				setTimeout ((...params) => {
+					this.run.call (Monogatari, ...params);
+				}, 0, this.label ()[this.state ('step')]);
+				this.debug.trace ();
+				this.debug.groupEnd ();
+
+				return Promise.resolve ();
 			}
-		} else {
-			// Clear the Stack using a Time Out instead of calling
-			// the function directly, preventing an Overflow
-			setTimeout ((...params) => {
-				this.run.call (Monogatari, ...params);
-			}, 0, this.label ()[this.state ('step')]);
 			this.debug.trace ();
 			this.debug.groupEnd ();
-
-			return Promise.resolve ();
-		}
-		this.debug.trace ();
-		this.debug.groupEnd ();
-		return Promise.reject ();
+			return Promise.reject ();
+		});
 	}
 
 	/**
@@ -1564,122 +1686,166 @@ class Monogatari {
 	 * if it couldn't be run correctly.
 	 */
 	static run (statement, shouldAdvance = true) {
-		this.debug.groupCollapsed ('Run Cycle');
 
-		// Don't allow null as a valid statement
-		if (statement === null) {
-			this.debug.trace ();
-			this.debug.groupEnd ();
-			return Promise.reject ();
-		}
+		const before = [];
 
-		this.debug.debug ('Running Action', statement);
-
-		let interpolatedStatement = null;
-
-		if (typeof statement === 'string') {
-			interpolatedStatement = this.replaceVariables (statement).split (' ');
-		}
-
-		// Iterate over all the registered actions to find one that matches with
-		// the statement to run.
 		for (const action of this.actions ()) {
-			let actionStatement = statement;
-			let matches = false;
+			before.push (action.beforeRun ({ advance: shouldAdvance }));
+		}
 
-			// Use the correct matching function (matchString or matchObject)
-			// depending on the type of the current statement. If the statement
-			// is a function, it will simply be run.
-			if (typeof statement === 'string') {
-				// Split the statement into an array using the space separations
-				actionStatement = interpolatedStatement;
+		return Promise.all (before).then (() => {
+			this.debug.groupCollapsed ('Run Cycle');
 
-				// Check if it matches using the matchString method
-				matches = action.matchString (actionStatement);
-			} else if (typeof statement === 'object') {
-				// Check if it matches using the matchObject method
-				matches = action.matchObject (statement);
-			} else if (typeof actionStatement === 'function') {
-				// Block the game while the function is being run
-				this.global ('block', true);
-
-				// Run the function asynchronously and after it has run, unblock
-				// the game so it can continue.
-				return Util.callAsync (actionStatement, Monogatari).finally (() => {
-					this.global ('block', false);
-					if (shouldAdvance) {
-						this.debug.trace ();
-						this.debug.groupEnd ();
-						return this.next ();
-					}
-				});
+			// Don't allow null as a valid statement
+			if (statement === null) {
+				this.debug.trace ();
+				this.debug.groupEnd ();
+				return Promise.reject ('Statement was null.');
 			}
 
-			// Check if the statement matched any of the registered actions
-			if (matches === true) {
-				// Create an instance of the action and initialize it with the
-				// current statement
-				const act = new action (actionStatement);
+			this.debug.debug ('Running Action', statement);
 
-				// The original statement is set just in case the action needs
-				// access to it
-				act._setStatement (statement);
+			let interpolatedStatement = null;
 
-				// The current cycle is also set just in case the action needs to
-				// know what cycle it's currently being performed.
-				act._setCycle ('Application');
+			if (typeof statement === 'string') {
+				interpolatedStatement = this.replaceVariables (statement).split (' ');
+			}
 
-				// Monogatari is set as the context of the action so that it can
-				// access all its functionalities
-				act.setContext (Monogatari);
+			// Iterate over all the registered actions to find one that matches with
+			// the statement to run.
+			for (const action of this.actions ()) {
+				let actionStatement = statement;
+				let matches = false;
 
-				this.trigger ('WillRunAction', {
-					action: act
-				});
+				// Use the correct matching function (matchString or matchObject)
+				// depending on the type of the current statement. If the statement
+				// is a function, it will simply be run.
+				if (typeof statement === 'string') {
+					// Split the statement into an array using the space separations
+					actionStatement = interpolatedStatement;
 
-				// Run the willApply method of the action first
-				return act.willApply ().then (() => {
-					this.debug.debug ('Action Will Apply');
+					// Check if it matches using the matchString method
+					matches = action.matchString (actionStatement);
+				} else if (typeof statement === 'object') {
+					// Check if it matches using the matchObject method
+					matches = action.matchObject (statement);
+				} else if (typeof actionStatement === 'function') {
+					// Block the game while the function is being run
+					this.global ('block', true);
 
-					// Run the apply method
-					return act.apply (shouldAdvance).then (() => {
-						this.debug.debug ('Action Applying');
-
-						// If everything has been run correctly, then run the
-						// didApply method. The action will return a boolean
-						// (shouldContinue) specifying if the game should run the
-						// next statement right away or if it should wait instead
-						return act.didApply ().then (({ advance }) => {
-							this.debug.debug ('Action Did Apply');
-
-							this.trigger ('didRunAction', {
-								action: act
-							});
-
-							if (advance === true && shouldAdvance === true) {
-								this.debug.debug ('Next action will be run right away');
-								this.next ();
-							}
+					// Run the function asynchronously and after it has run, unblock
+					// the game so it can continue.
+					return Util.callAsync (actionStatement, Monogatari).then ((returnValue) => {
+						this.global ('block', false);
+						if (shouldAdvance && returnValue !== false) {
 							this.debug.trace ();
 							this.debug.groupEnd ();
+							return this.next ();
+						}
+
+						return Promise.resolve ({ advance: false });
+					}).catch((e) => {
+						let error = {
+							'Label': this.state ('label'),
+							'Step': this.state ('step'),
+							'Help': {
+								'_': 'Check the code for your function, there may be additional information in the console.',
+							}
+						};
+
+						if (typeof e === 'object') {
+							error = Object.assign (error, {
+								'Error Message': e.message,
+								'File Name': e.fileName,
+								'Line Number': e.lineNumber
+							});
+						} else if (typeof e === 'string') {
+							error['Error Message'] = e;
+						}
+
+						FancyError.show (
+							'An error occurred while trying to run a Function.',
+							'Monogatari attempted to run a function on the script but an error occurred.',
+							error
+						);
+					});
+				}
+
+				// Check if the statement matched any of the registered actions
+				if (matches === true) {
+					// Create an instance of the action and initialize it with the
+					// current statement
+					const act = new action (actionStatement);
+
+					// The original statement is set just in case the action needs
+					// access to it
+					act._setStatement (statement);
+
+					// The current cycle is also set just in case the action needs to
+					// know what cycle it's currently being performed.
+					act._setCycle ('Application');
+
+					// Monogatari is set as the context of the action so that it can
+					// access all its functionalities
+					act.setContext (Monogatari);
+
+					this.trigger ('WillRunAction', {
+						action: act
+					});
+
+					// Run the willApply method of the action first
+					return act.willApply ().then (() => {
+						this.debug.debug ('Action Will Apply');
+
+						// Run the apply method
+						return act.apply (shouldAdvance).then (() => {
+							this.debug.debug ('Action Applying');
+
+							// If everything has been run correctly, then run the
+							// didApply method. The action will return a boolean
+							// (shouldContinue) specifying if the game should run the
+							// next statement right away or if it should wait instead
+							return act.didApply ().then (({ advance }) => {
+								this.debug.debug ('Action Did Apply');
+
+								this.trigger ('didRunAction', {
+									action: act
+								});
+
+								const promises = [];
+
+								for (const action of this.actions ()) {
+									promises.push (action.afterRun ({ advance }));
+								}
+
+								return Promise.all (promises).then (() => {
+									if (advance === true && shouldAdvance === true) {
+										this.debug.debug ('Next action will be run right away');
+										this.next ();
+									}
+									this.debug.trace ();
+									this.debug.groupEnd ();
+									return Promise.resolve ({ advance });
+								});
+							}).catch ((e) => {
+								this.debug.debug (`Did Apply Failed.\nReason: ${e}`);
+								return Promise.reject (e);
+							});
 						}).catch ((e) => {
-							this.debug.debug (`Did Apply Failed.\nReason: ${e}`);
+							this.debug.debug (`Application Failed.\nReason: ${e}`);
 							return Promise.reject (e);
 						});
 					}).catch ((e) => {
-						this.debug.debug (`Application Failed.\nReason: ${e}`);
+						this.debug.debug (`Will Apply Failed.\nReason: ${e}`);
+						this.debug.trace ();
+						this.debug.groupEnd ();
 						return Promise.reject (e);
 					});
-				}).catch ((e) => {
-					this.debug.debug (`Will Apply Failed.\nReason: ${e}`);
-					this.debug.trace ();
-					this.debug.groupEnd ();
-					return Promise.reject (e);
-				});
+				}
 			}
-		}
-		this.debug.trace ();
-		this.debug.groupEnd ();
+			this.debug.trace ();
+			this.debug.groupEnd ();
+		});
 	}
 
 	static alert (id, options) {
@@ -1825,6 +1991,14 @@ class Monogatari {
 					this.storage (storage);
 				}
 
+
+				if (this.state ('step') > this.label ().length - 1) {
+					while (this.state ('step') > this.label ().length - 1) {
+						const step = this.state ('step') - 1;
+						this.state ({ step });
+					}
+				}
+
 				this.onLoad ().then (() => {
 					// Finally show the game and start playing
 					this.showScreen ('game');
@@ -1867,10 +2041,11 @@ class Monogatari {
 		// playing or is looking at some menu and thus the game should not
 		// proceed. The game will not proceed if it's blocked or if the distraction
 		// free mode is enabled.
+
 		if (!$_('.modal').isVisible ()
 			&& !this.global ('distraction_free')
 			&& !this.global ('block')
-			&& !this.global ('_engine_block')) {
+			&& (!this.global ('_engine_block') || this.global ('_executing_sub_action'))) {
 			const promises = [];
 
 			this.debug.groupCollapsed ('shouldProceed Check');
@@ -1987,7 +2162,7 @@ class Monogatari {
 		// free mode is enabled.
 		if (!this.global ('distraction_free')
 			&& !this.global ('block')
-			&& !this.global ('_engine_block')) {
+			&& (!this.global ('_engine_block') || this.global ('_executing_sub_action'))) {
 			const promises = [];
 
 			this.debug.groupCollapsed ('shouldRollback Check');
@@ -2033,7 +2208,7 @@ class Monogatari {
 				return Promise.reject (e);
 			});
 		} else {
-			return Promise.reject ();
+			return Promise.reject ('Extra condition check failed.');
 		}
 	}
 
@@ -2112,11 +2287,11 @@ class Monogatari {
 				// avoid media from being autoplayed. Because of these protections,
 				// the user needs to interact with the page first before the media
 				// is able to play.
-				this.ambientPlayer.play ().catch (() => {
-
+				this.ambientPlayer.play ().catch ((e) => {
+					console.warn(e);
 					// Create a broadcast message
 					const element = `
-						<div data-ui="broadcast">
+						<div data-ui="broadcast" data-content="allow-playback">
 							<p data-string="AllowPlayback">${this.string ('AllowPlayback')}.</p>
 						</div>
 					`;
@@ -2126,9 +2301,9 @@ class Monogatari {
 
 					// Try to play the media again once the element has been clicked
 					// and remove it.
-					this.element ().find ('[data-ui="broadcast"]').click (() => {
+					this.element ().on ('click', '[data-ui="broadcast"][data-content="allow-playback"]', () => {
 						this.playAmbient ();
-						this.element ().find ('[data-ui="broadcast"]').remove ();
+						this.element ().find ('[data-ui="broadcast"][data-content="allow-playback"]').remove ();
 					});
 				});
 			} else {
@@ -2163,6 +2338,8 @@ class Monogatari {
 
 	// Start game automatically without going trough the main menu
 	static showMainScreen () {
+		this.global ('on_splash_screen', false);
+
 		if (!this.setting ('ShowMainScreen')) {
 			this.global ('playing', true);
 			this.showScreen ('game');
@@ -2177,14 +2354,20 @@ class Monogatari {
 		if (typeof labelName === 'string' && labelName !== '') {
 			const label = this.label (labelName);
 			if (typeof label !== 'undefined') {
+				this.global ('on_splash_screen', true);
+
 				this.state ({
 					label: labelName
 				});
 
-				this.element ().find ('quick-menu').addClass ('splash-screen');
+				this.element ().find ('[data-component="game-screen"]').addClass ('splash-screen');
+
+				this.element ().find ('[data-component="quick-menu"]').addClass ('splash-screen');
 
 				this.showScreen ('game');
+
 				this.run (this.label ()[this.state ('step')]);
+
 				return;
 			}
 		}
@@ -2262,9 +2445,35 @@ class Monogatari {
 		this.Storage.get ('Settings').then ((local_settings) => {
 			this._preferences = merge (this._preferences, local_settings);
 		}).catch ((e) => {
-			console.error (e);
+			console.warn ('There was no settings saved. This may be the first time this game was opened, we\'ll create them now.', e);
 			this.Storage.set ('Settings', this._preferences);
 		});
+
+		// Define all the components that were registered to this point
+		for (const component of this._components) {
+			if (typeof window.customElements.get (component.tag) === 'undefined') {
+				component.engine = this;
+				window.customElements.define (component.tag, component);
+			} else {
+				FancyError.show (
+					`Unable to register component "${component.tag}"`,
+					'Monogatari attempted to register a component but another component had already been registered for the same tag.',
+					{
+						'Component / Tag': component,
+						'Help': {
+							'_': 'Once a component for a tag has been registered and the setup has completed, it can not be replaced or removed. Try removing the conflicting component first:',
+							'_1': `
+								<pre>
+									<code class='language-javascript'>
+										monogatari.unregisterComponent ('${component.tag}')
+									</code>
+								</pre>
+							`,
+						}
+					}
+				);
+			}
+		}
 
 		// Register service worker. The service worker will save all requests into
 		// the cache so the game loads more quickly and we can play offline. The
@@ -2277,7 +2486,7 @@ class Monogatari {
 				// TODO: There's a place in hell for this quick fix, the splitting
 				// of the sw file is just preventing parcel from trying to bundle it
 				// when building the core libraries.
-				navigator.serviceWorker.register ('./../service-worker' + '.js').then ((registration) => {
+				navigator.serviceWorker.register ('service-worker' + '.js').then ((registration) => {
 
 					// Check if an update to the service worker was found
 					registration.onupdatefound = () => {
@@ -2289,13 +2498,13 @@ class Monogatari {
 							if (worker.state === 'installed') {
 								if (navigator.serviceWorker.controller) {
 									const element = `
-										<div data-ui="broadcast">
+										<div data-ui="broadcast" data-content="new-content">
 											<p data-string="NewContent">${this.string ('NewContent')}.</p>
 										</div>
 									`;
 									this.element ().prepend (element);
-									$_(`${selector} [data-ui="broadcast"]`).click (() => {
-										$_(`${selector} [data-ui="broadcast"]`).remove ();
+									this.element ().on ('click', '[data-ui="broadcast"][data-content="new-content"]', () => {
+										this.element ().find ('[data-ui="broadcast"][data-content="new-content"]').remove ();
 									});
 								}
 							}
@@ -2331,7 +2540,7 @@ class Monogatari {
 				this.global ('playing', true);
 
 				// Remove the play main menu audio broadcast message if it's present
-				this.element ().find ('[data-ui="broadcast"]').remove ();
+				this.element ().find ('[data-ui="broadcast"][data-content="allow-playback"]').remove ();
 
 				this.onStart ().then (() => {
 					this.element ().find ('[data-screen]').each ((screen) => {
@@ -2393,7 +2602,10 @@ class Monogatari {
 			action.engine = this;
 			promises.push (action.setup (selector));
 		}
-		return Promise.all (promises);
+		return Promise.all (promises).then (() => {
+			this.global ('_didSetup', true);
+			return Promise.resolve ();
+		});
 	}
 	/**
 	 * @static skip - Enable or disable the skip mode which is similar to auto
@@ -2522,7 +2734,7 @@ class Monogatari {
 					screen.setState ({ open: false });
 				});
 
-				if (this.global ('playing')) {
+				if (this.global ('playing') || this.global ('on_splash_screen')) {
 					this.element ().find ('[data-screen="game"]').get (0).setState ({ open: true });
 				} else {
 					this.element ().find ('[data-screen="main"]').get (0).setState ({ open: true });
@@ -2617,6 +2829,7 @@ class Monogatari {
 					this.keyboardShortcut (keys, callback);
 				}
 			}
+			this.global ('_didBind', true);
 			return Promise.resolve ();
 		});
 	}
@@ -2825,10 +3038,20 @@ class Monogatari {
 				}
 
 				return Promise.all (init).then (() => {
+					this.global ('_didInit', true);
 					this.trigger ('didInit');
 				});
 			});
 		});
+	}
+
+	static random (min, max) {
+		try {
+			return new Random (browserCrypto).integer (min, max);
+		} catch (e) {
+			console.error (e);
+			return new Random ().integer (min, max);
+		}
 	}
 }
 
@@ -2878,6 +3101,10 @@ Monogatari._globals = {
 };
 
 Monogatari._functions = {
+
+};
+
+Monogatari._$ = {
 
 };
 
@@ -3052,7 +3279,12 @@ Monogatari.globals ({
 	_log: [],
 	_auto_save_interval: null,
 	_engine_block: false,
+	_executing_sub_action: false,
 	_restoring_state: false,
+	on_splash_screen: false,
+	_didSetup: false,
+	_didBind: false,
+	_didInit: false,
 });
 
 Monogatari._listeners = [];

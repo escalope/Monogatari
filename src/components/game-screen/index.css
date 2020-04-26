@@ -42,6 +42,18 @@ game-screen {
 		.bottom {
 			top: auto;
 		}
+
+		.left {
+			right: auto;
+		}
+
+		.right {
+			left: auto;
+		}
+
+		.top {
+			bottom: auto;
+		}
 	}
 
 	[data-character] {

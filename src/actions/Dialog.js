@@ -5,7 +5,6 @@ import { $_ } from '@aegis-framework/artemis';
 export class Dialog extends Action {
 
 	static shouldProceed () {
-
 		// Check if the type animation has finished and the Typed object still exists
 		if (!this.engine.global ('finished_typing') && this.engine.global ('textObject') !== null) {
 
@@ -43,7 +42,9 @@ export class Dialog extends Action {
 		}
 
 		this.engine.global ('finished_typing', true);
-		this.engine.global ('_CurrentChoice', null);
+
+		// this.engine.global ('_CurrentChoice');
+
 		this.engine.element ().find ('[data-component="text-box"]').show ('flex');
 
 		const dialogLog = this.engine.component ('dialog-log');
@@ -65,7 +66,7 @@ export class Dialog extends Action {
 	static setup () {
 		this.engine.globals ({
 			textObject: null,
-			finished_typing: true,
+			finished_typing: false,
 			typedConfiguration: {
 				strings: [],
 				typeSpeed: this.engine.preference ('TextSpeed'),
@@ -107,7 +108,12 @@ export class Dialog extends Action {
 		// Detect scroll on the text element to remove the unread class used when
 		// there's text not being shown in NVL mode.
 		$_(`${selector} [data-component="text-box"]`).on ('scroll', () => {
-			this.engine.element ().find ('[data-component="text-box"]').removeClass ('unread');
+			const text_box = this.engine.element ().find ('[data-component="text-box"]');
+			if (text_box.exists ()) {
+				if (typeof text_box.get (0).checkUnread === 'function') {
+					text_box.get (0).checkUnread ();
+				}
+			}
 		});
 		return Promise.resolve ();
 	}
@@ -119,9 +125,6 @@ export class Dialog extends Action {
 		}
 
 		this.engine.setting ('maxTextSpeed', parseInt ($_(`${selector} [data-action="set-text-speed"]`).property ('max')));
-
-
-		//document.querySelector('[data-action="set-text-speed"]').value = this.engine.preference ('TextSpeed');
 
 		return Promise.resolve ();
 	}
@@ -142,6 +145,9 @@ export class Dialog extends Action {
 
 		this.engine.element ().find ('[data-ui="who"]').html ('');
 		this.engine.element ().find ('[data-ui="say"]').html ('');
+
+		this.engine.element ().find ('[data-ui="face"]').attribute ('src', '');
+		this.engine.element ().find ('[data-ui="face"]').hide ();
 
 		return Promise.resolve ();
 	}
@@ -170,10 +176,12 @@ export class Dialog extends Action {
 			if (typeof expression !== 'undefined') {
 				if (typeof this.character.expressions !== 'undefined') {
 					this.image = this.character.expressions[expression];
+					this.expression = expression;
 				}
 
 			} else if (typeof this.character.default_expression !== 'undefined') {
 				this.image = this.character.default_expression;
+				this.expression = 'default';
 			}
 		} else if (id === 'centered') {
 			this.id = 'centered';
@@ -190,7 +198,11 @@ export class Dialog extends Action {
 	willApply () {
 		this.engine.element ().find ('[data-character]').removeClass ('focus');
 		this.engine.element ().find ('[data-ui="face"]').hide ();
+
 		document.querySelector ('[data-ui="who"]').innerHTML = '';
+
+		this.engine.element ().find ('[data-component="text-box"]').removeData ('expression');
+
 		return Promise.resolve ();
 	}
 
@@ -200,11 +212,13 @@ export class Dialog extends Action {
 		this.engine.element ().find ('[data-screen="game"]').append (element);
 
 		element.ready (() => {
-			if (animation) {
+			if (animation && this.engine.setting ('TypeAnimation') === true) {
 				this.engine.global ('typedConfiguration').strings = [dialog];
+				this.engine.global ('finished_typing', false);
 				this.engine.global ('textObject', new Typed (element.content ('wrapper').get (0), this.engine.global ('typedConfiguration')));
 			} else {
 				element.content ('wrapper').html (dialog);
+				this.engine.global ('finished_typing', true);
 				this.engine.trigger ('didFinishTyping');
 			}
 		});
@@ -230,12 +244,16 @@ export class Dialog extends Action {
 			// no animation will be shown in the game.
 			if (character !== 'narrator') {
 				if (previous !== character) {
+					this.engine.element ().find ('[data-ui="say"] [data-spoke]').last().addClass ('nvl-dialog-footer');
 					this.engine.element ().find ('[data-ui="say"]').append (`<div data-spoke="${character}" class='named'><span style='color:${this.engine.character (character).color};'>${this.engine.replaceVariables (this.engine.character (character).name)}: </span><p></p></div>`);
 				} else {
 					this.engine.element ().find ('[data-ui="say"]').append (`<div data-spoke="${character}"><p></p></div>`);
 				}
 
 			} else {
+				if (previous !== character) {
+					this.engine.element ().find ('[data-ui="say"] [data-spoke]').last().addClass ('nvl-dialog-footer');
+				}
 				this.engine.element ().find ('[data-ui="say"]').append (`<div data-spoke="${character}" class='unnamed'><p></p></div>`);
 			}
 
@@ -243,22 +261,35 @@ export class Dialog extends Action {
 			const last = elements.last ().get (0);
 
 			this.engine.global ('typedConfiguration').strings = [dialog];
+			this.engine.global ('finished_typing', false);
 			this.engine.global ('textObject', new Typed (last, this.engine.global ('typedConfiguration')));
 
 		} else {
 			if (character !== 'narrator') {
 				if (previous !== character) {
+					this.engine.element ().find ('[data-ui="say"] [data-spoke]').last().addClass ('nvl-dialog-footer');
 					this.engine.element ().find ('[data-ui="say"]').append (`<div data-spoke="${character}" class='named'><span style='color:${this.engine.character (character).color};'>${this.engine.replaceVariables (this.engine.character (character).name)}: </span><p>${dialog}</p></div>`);
 				} else {
 					this.engine.element ().find ('[data-ui="say"]').append (`<div data-spoke="${character}"><p>${dialog}</p></div>`);
 				}
 
 			} else {
+				if (previous !== character) {
+					this.engine.element ().find ('[data-ui="say"] [data-spoke]').last().addClass ('nvl-dialog-footer');
+				}
 				this.engine.element ().find ('[data-ui="say"]').append (`<div data-spoke="${character}" class='unnamed'><p>${dialog}</p></div>`);
 			}
 			this.engine.global ('finished_typing', true);
 			this.engine.trigger ('didFinishTyping');
 		}
+
+		const text_box = this.engine.element ().find ('[data-component="text-box"]');
+		if (text_box.exists ()) {
+			if (typeof text_box.get (0).checkUnread === 'function') {
+				text_box.get (0).checkUnread ();
+			}
+		}
+
 	}
 
 	displayDialog (dialog, character, animation) {
@@ -285,6 +316,7 @@ export class Dialog extends Action {
 				// if it is set to false, even if the flag was set to true,
 				// no animation will be shown in the game.
 				this.engine.global ('typedConfiguration').strings = [dialog];
+				this.engine.global ('finished_typing', false);
 				this.engine.global ('textObject', new Typed ('[data-ui="say"]', this.engine.global ('typedConfiguration')));
 			} else {
 				this.engine.element ().find ('[data-ui="say"]').html (dialog);
@@ -324,6 +356,7 @@ export class Dialog extends Action {
 			`${this.engine.setting ('AssetsPath').root}/${this.engine.setting ('AssetsPath').characters}/${directory}${this.image}`;
 			this.engine.element ().find ('[data-ui="face"]').attribute ('src', `${this.engine.setting ('AssetsPath').root}/${this.engine.setting ('AssetsPath').characters}/${directory}${this.image}`);
 			this.engine.element ().find ('[data-ui="face"]').show ();
+			this.engine.element ().find ('[data-component="text-box"]').data ('expression', this.expression);
 		}
 
 		// Check if the character object defines if the type animation should be used.

@@ -31,3 +31,5 @@ release
 .ftpconfig
 .sftpconfig
 dist/certs
+cypress/videos/
+cypress/screenshots/

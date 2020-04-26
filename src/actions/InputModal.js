@@ -22,6 +22,14 @@ export class InputModal extends Action {
 		if (typeof this.statement.Warning !== 'string') {
 			this.statement.Warning = '';
 		}
+
+		if (typeof this.statement.actionString !== 'string') {
+			this.statement.actionString = 'OK';
+		}
+
+		if (typeof this.statement.Class !== 'string') {
+			this.statement.Class = '';
+		}
 	}
 
 	apply () {
@@ -29,17 +37,19 @@ export class InputModal extends Action {
 
 		const input = document.createElement ('text-input');
 
-		const { Text, Warning, Save, Validation } = this.statement;
+		const { Text, Warning, Save, Validation, actionString, Class } = this.statement;
 
 		input.setProps ({
 			text: this.engine.replaceVariables (Text),
 			warning: Warning,
 			onSubmit: Save,
 			validate: Validation,
+			actionString,
 			callback: () => {
 				this.engine.global ('block', false);
 				this.engine.proceed ();
-			}
+			},
+			classes: Class.trim ()
 		});
 
 		this.engine.element ().find ('[data-screen="game"]').append (input);

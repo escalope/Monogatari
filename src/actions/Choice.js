@@ -4,13 +4,11 @@ import { Util } from '@aegis-framework/artemis';
 export class Choice extends Action {
 
 	static setup () {
-		this.engine.global ('_CurrentChoice', null);
-		this.engine.history ('choice');
-		return Promise.resolve ();
-	}
+		this.engine.global ('_CurrentChoice', []);
+		this.engine.global ('_ChoiceTimer', []);
 
-	static willRollback () {
-		this.engine.global ('_CurrentChoice', null);
+		this.engine.history ('choice');
+
 		return Promise.resolve ();
 	}
 
@@ -26,7 +24,7 @@ export class Choice extends Action {
 
 			engine.global ('block', false);
 
-			const doAction = this.dataset.do;
+			let doAction = this.dataset.do;
 
 			// Check that the data property was not created with
 			// a null property
@@ -34,36 +32,53 @@ export class Choice extends Action {
 
 				// Remove all the choices
 				engine.element ().find ('choice-container').remove ();
+
 				const choice = this.dataset.choice;
 
-				// Remove the reference to the current choice object
-				if (engine.global ('_CurrentChoice') !== null) {
-					if (typeof engine.global ('_CurrentChoice')[choice] !== 'undefined') {
-						if (typeof engine.global ('_CurrentChoice')[choice].onChosen === 'function') {
-							Util.callAsync (engine.global ('_CurrentChoice')[choice].onChosen, engine).then (() => {
-								engine.run (engine.global ('_CurrentChoice')[choice].Do, false);
-								engine.global ('_CurrentChoice', null);
-							});
-						} else {
-							engine.run (engine.global ('_CurrentChoice')[choice].Do, false);
-							engine.global ('_CurrentChoice', null);
+				const current = engine.global ('_CurrentChoice').pop().Choice;
+
+				if (typeof current.Timer !== 'undefined') {
+					const timer = engine.global ('_ChoiceTimer').pop ();
+					if (typeof timer !== 'undefined') {
+						clearTimeout (timer.props.timer);
+						if (timer.parentNode !== null) {
+							timer.element ().remove ();
 						}
-						engine.history ('choice').push (choice);
-					} else {
-						engine.run (doAction, false);
-						engine.global ('_CurrentChoice', null);
 					}
-				} else {
-					engine.run (doAction, false);
-					engine.global ('_CurrentChoice', null);
 				}
+
+				if (current) {
+					doAction = current[choice].Do;
+				}
+
+				const run = () => {
+					engine.global ('_executing_sub_action', true);
+					engine.run (doAction).then ((result) => {
+						engine.global ('_executing_sub_action', false);
+						engine.history ('choice').push (choice);
+
+						return Promise.resolve (result);
+					});
+				};
+
+				// Remove the reference to the current choice object
+				if (current) {
+					if (current[choice] !== 'undefined') {
+						if (typeof current[choice].onChosen === 'function') {
+							return Util.callAsync (current[choice].onChosen, engine).then (() => {
+								run ();
+							});
+						}
+					}
+				}
+				run ();
 			}
 		});
 		return Promise.resolve ();
 	}
 
 	static reset () {
-		this.engine.global ('_CurrentChoice', null);
+		this.engine.global ('_CurrentChoice', []);
 		return Promise.resolve ();
 	}
 
@@ -73,16 +88,20 @@ export class Choice extends Action {
 
 	constructor (statement) {
 		super ();
+
 		this.statement = statement.Choice;
+
+		this.result = { advance: false, step: false };
 	}
 
 	apply () {
 		this.engine.global ('block', true);
+
 		// Save a reference to the choice object globally. Since the choice buttons
 		// are set a data-do property to know what the choice should do, it is
 		// limited to a string and thus object or function actions would not be
 		// able to be used in choices.
-		this.engine.global ('_CurrentChoice', this.statement);
+		this.engine.global ('_CurrentChoice').push (this._statement);
 
 		const promises = [];
 
@@ -94,6 +113,10 @@ export class Choice extends Action {
 			// Check if the option is an object (a option to choose from) or
 			// if it's text (dialog to be shown)
 			if (typeof choice == 'object') {
+				if (i === 'Timer') {
+					continue;
+				}
+
 				this.statement[i]._key = i;
 
 				// Check if the current option has a condition to be shown
@@ -128,16 +151,24 @@ export class Choice extends Action {
 			});
 
 			const dialog = this.statement.Dialog;
+			const timer = this.statement.Timer;
 
 			if (typeof dialog === 'string') {
 				// If there's a dialog, we'll wait until showing that up to show
 				// the choices, in order to avoid showing the choices in an incorrect
 				// format if the dialog was NVL or not
-				this.engine.run (dialog, false).then (() => {
+				return this.engine.run (dialog, false).then (() => {
 					if (this.engine.element ().find ('[data-component="text-box"]').hasClass ('nvl')) {
 						this.engine.element ().find ('[data-component="text-box"]').get (0).content ('text').append (element);
 					} else {
 						this.engine.element ().find ('[data-screen="game"]').append (element);
+					}
+
+					if (typeof timer === 'object') {
+						const timer_display = document.createElement ('timer-display');
+						timer_display.setProps (timer);
+						this.engine.global ('_ChoiceTimer').push(timer_display);
+						this.engine.element ().find ('[data-screen="game"]').prepend (timer_display);
 					}
 				});
 			} else {
@@ -147,12 +178,17 @@ export class Choice extends Action {
 				} else {
 					this.engine.element ().find ('[data-screen="game"]').append (element);
 				}
+
+				if (typeof timer === 'object') {
+					const timer_display = document.createElement ('timer-display');
+					timer_display.setProps (timer);
+					this.engine.global ('_ChoiceTimer').push(timer_display);
+					this.engine.element ().find ('[data-screen="game"]').prepend (timer_display);
+				}
 			}
 		});
 	}
 
-	// Revert is disabled for choices since we still don't have a way to know what
-	// a choice did
 	willRevert () {
 		if (this.engine.history ('choice').length > 0) {
 			const choice = this.engine.history ('choice')[this.engine.history ('choice').length - 1];
@@ -165,21 +201,24 @@ export class Choice extends Action {
 
 				if (functionReversible) {
 					return Promise.resolve ();
+				} else {
+					return Promise.reject ('The choice taken is not reversible because it did not defined a `onRevert` function.');
 				}
 			}
 		}
-		return Promise.reject ();
+		return Promise.reject ('Choice history was empty');
 	}
 
 	revert () {
 		const choice = this.engine.history ('choice')[this.engine.history ('choice').length - 1];
+
 		return this.engine.revert (this.statement[choice].Do, false).then (() => {
 			if (typeof this.statement[choice].onRevert === 'function') {
-				return Util.callAsync (this.statement[choice].onRevert, this.engine).then (() => {
-					return this.apply ();
-				});
+				return Util.callAsync (this.statement[choice].onRevert, this.engine);
 			}
-			return this.apply ();
+			return Promise.resolve ();
+		}).then (() => {
+			return this.engine.run (this._statement, false);
 		});
 	}
 
