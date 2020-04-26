@@ -39,7 +39,7 @@ monogatari.settings({
 	'AutoSaveLabel': 'AutoSave',
 
 	// Turn main menu on/off; Default: true *
-	'ShowMainScreen': true,
+	'ShowMainScreen': false,
 
 	// Turn image preloading on/off, Default: true
 	'Preload': true,
@@ -126,6 +126,8 @@ monogatari.settings({
 	}
 });
 
+
+
 // Initial Settings
 monogatari.preferences ({
 
@@ -142,7 +144,7 @@ monogatari.preferences ({
 
 	// Initial resolution used for Electron, it must match the settings inside
 	// the electron.js file. This has no effect on web deployed novels.
-	'Resolution': '800x600',
+	'Resolution': '600x400',
 
 	// Speed at which dialog text will appear
 	'TextSpeed': 20,

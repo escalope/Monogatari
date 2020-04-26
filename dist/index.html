@@ -8,7 +8,6 @@
 
 		<meta charset="UTF-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, maximum-scale=1">
-		<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self' 'unsafe-eval'">
 		<meta name="description" content=""> <!--Page description. No longer than 155 characters.-->
 		<meta name="keywords" content="">
 		<meta name="author" content=""> <!--Name of the author.-->
@@ -78,6 +77,12 @@
 		<!-- Third Party JavaScript Libraries -->
 		<script src="./js/vendor/jquery.min.js"></script>
 
+		<!-- alpaca -->
+		<script type="text/javascript" src="style/handlebars.js"></script>
+		<link type="text/css" href="style/alpaca.css" rel="stylesheet" />
+		<script type="text/javascript" src="style/alpaca.js"></script>
+
+
 		<!-- Monogatari JavaScript Libraries -->
 		<script src="./engine/debug/debug.js"></script>
 		<script src="./engine/core/monogatari.js"></script>
@@ -100,15 +105,23 @@
 
 		<div id="monogatari">
 			<visual-novel>
+
 				<loading-screen></loading-screen>
 				<main-screen>
+
 					<main-menu></main-menu>
+
 				</main-screen>
+
 				<game-screen>
+
 					<dialog-log></dialog-log>
+
 					<text-box></text-box>
-					<quick-menu></quick-menu>
+
+					<!--quick-menu></quick-menu-->
 				</game-screen>
+
 				<gallery-screen></gallery-screen>
 				<credits-screen></credits-screen>
 				<load-screen></load-screen>
@@ -117,6 +130,7 @@
 				<help-screen></help-screen>
 			</visual-novel>
 		</div>
+
 	</body>
 
 </html>

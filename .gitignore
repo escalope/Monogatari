@@ -30,3 +30,4 @@ release
 .conf
 .ftpconfig
 .sftpconfig
+dist/certs
