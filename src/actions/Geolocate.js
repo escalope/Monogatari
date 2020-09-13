@@ -9,23 +9,26 @@ export class Geolocate extends Action {
 		return action === 'geolocate';
 	}
 
-	constructor ([ action, area,checkevery=500, timeout, precision ]) {
+	constructor ([ action, area,checkevery=1, timeout, precision ]) {
 		super ();
 		this.waited=0;
 		this.area=area;
-		this.timeout=timeout;
 		this.precision=parseFloat (precision);
-		this.checkevery=parseInt (checkevery);
+		
+if (!isNaN (checkevery)) {
+					this.checkevery=parseInt (checkevery)*1000;
+				} 
+		if (!isNaN (timeout)) {
+					this.timeout= parseInt (timeout)*1000;
+				} 
 		// First check if vibration is available available
 		if (navigator) {
 			if (navigator.geolocate) {
 				// Since time can be a pattern made of different lengths, we have
 				// to use an array
 				// Check if all times are valid integers
-				if (!isNaN (timeout)) {
-					this.timeout= parseInt (timeout)*1000;
-				} else {
-					FancyError.show (
+
+					/*FancyError.show (
 						'The specified area is not known',
 						'Monogatari attempted to geolocate an area but failed. ',
 						{
@@ -37,8 +40,8 @@ export class Geolocate extends Action {
 								'_': 'Please, define the locations in your script first by defining monogatari.gelocation as in the examples'
 							}
 						}
-					);
-				}
+					);*/
+				
 			} else {
 				console.warn ('Geolocation is not supported in this platform.');
 			}
@@ -61,9 +64,18 @@ export class Geolocate extends Action {
 		return 	res1<precision && res2<precision;
 	}
 
+	error(err){
+	 console.warn("ERROR(${err.code}):$(err.message}");
+	}
+
 	getLocation(positionProcessing) {
+		var options ={
+		  enableHighAccuracy:true,
+                  timeout:5000,
+		  maximumAge:0};
+
 		if (navigator.geolocation) {
-			navigator.geolocation.getCurrentPosition(positionProcessing);
+			navigator.geolocation.getCurrentPosition(positionProcessing,(err)=>{ console.warn("ERROR(${err.code}):$(err.message}");}, options);
 			return true;
 		} else {
 			return  false;
@@ -242,6 +254,7 @@ export class Geolocate extends Action {
 		this.getLocation((position)=>{
 			/*alert("ya1 "+
 			JSON.stringify(this.engine.geolocation(this.area)));*/
+			
 			var d=this.distance(position.coords.latitude,
 				position.coords.longitude,this.engine.geolocation(this.area).latitude,
 				this.engine.geolocation(this.area).longitude,'K' );

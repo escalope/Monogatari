@@ -12,7 +12,7 @@ export class Call extends Action {
 	static bind (selector) {
 		this.engine.registerListener ('call', {
 			callback: (element) => {
-				this.engine.run (`call ${element.data('jump')}`, false);
+				this.engine.run (`call ${element.data('call')}`, false);
 			}
 		});
 		return Promise.resolve ();

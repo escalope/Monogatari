@@ -51,17 +51,20 @@ export class Return extends Action {
 	apply () {
 	
 		const last = this.engine.history ('call')[this.engine.history ('call').length - 1];
-		if (typeof last !== 'undefined') {
+
+
+			this.engine.history ('label').pop ();
+			this.engine.history ('call').pop ();
+
 			this.engine.state ({
-				step: last.source.step,
+				step: last.source.step+1,
 				label: last.source.label
 			});
-			this.engine.history ('call').pop ();
-			this.engine.history ('label').pop ();
-			//this.engine.run (this.engine.label ()[this.engine.state ('step')+1]);
+			this.engine.run (this.engine.label ()[this.engine.state ('step')]);
+
+			this.engine.global ('block', false);
 			return Promise.resolve ();
-		}
-		return Promise.reject ('No call elements in history available.');		
+
 	}
 
 	// Return is right now not reversible due to complications with the logic for it

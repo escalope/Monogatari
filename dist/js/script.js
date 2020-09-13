@@ -34,6 +34,10 @@ function getPicture(){
 
 }
 
+function randomInt(min, max) {
+	return min + Math.floor((max - min) * Math.random());
+};
+
 /*monogatari.component ('game-screen').template (function() {
 return " <h1>My Awesome Game</h1>antes<p id='demo'></p>despues";
 });*/
@@ -106,12 +110,27 @@ monogatari.assets ('scenes', {
 	"aereo":"aereo.jpg"
 });
 
+
 // Define the Characters
 monogatari.characters ({
-	'y': {
-		name: 'Yui',
-		color: '#5bcaff'
-	}
+ 'sylvie': {
+        name: 'sylvie',
+        color: '#00bfff', 
+        directory: 'sylvie', // Optional*
+        sprites :{ // Images Identifier for the 'Show' statement.
+            giggle: 'sylvie blue giggle.png',
+            normal: 'sylvie blue normal.png',
+            smile: 'sylvie blue smile.png',
+            surprised: 'sylvie blue surprised.png'
+        },
+        default_expression: 'face.png', // Optional, side image to show every time the character speaks.
+        expressions: { // Side images identifiers to show on dialogs
+             giggle: 'sylvie blue giggle.png',
+            normal: 'sylvie blue normal.png',
+            smile: 'sylvie blue smile.png',
+            surprised: 'sylvie blue surprised.png'
+        }
+    }
 });
 //https://makitweb.com/how-to-capture-picture-from-webcam-with-webcam-js/
 
@@ -149,10 +168,15 @@ setTimeout(function(){monogatari.sendEvent("northarea");alert("Hello!");},10000)
 // check google maps to obtain coordinates by right clicking anyplace in the map
 // and choosing "what's here"
 monogatari.geolocations({
-	"northarea":{latitude:40.437542, longitude:-3.724985},
-	"southarea": {latitude:40.437912, longitude:-3.724768},
-	"berlin":{latitude:52.520007,longitude:13.404954}
+	"sitio1":{latitude:40.420242, longitude:-4.706434},
+	"sitio2": {latitude:40.420208, longitude:-4.706264},
+	"sitio3":{latitude:52.520007,longitude:13.404954},
+	"rectorado1":{latitude:40.437399, longitude:-3.724405},
+	"rectorado2":{latitude:40.437872, longitude:-3.724750}
+
 });
+
+
 
 monogatari.customForms({
 	"opinion":{
@@ -207,15 +231,82 @@ monogatari.script({"SouthArea":['geolocate southarea 10000 100 1',
 "Things that happen in the south area"]});
 
 
+
+monogatari.script({"randommessage":[	
+{'Conditional': {
+
+    'Condition': function(){
+        return randomInt(1,4)+"";
+    },
+    '1': 'muevete ya',
+    '2': 'a qué esperas?',
+    '3': 'no seas perro',
+    '4': 'las piedras se mueven más que tú'
+}},"return"]});
+
+function sitio(monogatari,etiqueta,sitio){
+elemento= {};
+elemento[etiqueta]=[
+	{'ConditionalGeolocation':{
+		'Condition':"geolocate "+sitio+" 1 30 0.05",
+		'False':"call randommessage",
+		'True':'olé'}
+	},"call "+etiqueta];
+monogatari.script(elemento);
+}
+
+
+sitio(monogatari,"primersitio","rectorado1");
+sitio(monogatari,"segundositio","rectorado2");
+
+/*
+monogatari.script({"primersitio":[
+	
+	{'ConditionalGeolocation':{
+		'Condition':"geolocate rectorado1 1 60 0.01",
+		'False':"call randommessage",
+		'True':'olé'}
+	},"call primersitio"]});
+
+monogatari.script({"segundositio":[
+	
+	{'ConditionalGeolocation':{
+		'Condition':"geolocate rectorado1 1 60 0.01",
+		'False':"call randommessage",
+		'True':'olé'}
+	},"call primersitio"]});
+*/
+
 monogatari.script ({	'Start': [
-	"customform opinion",
+
+//	"call randommessage","primera","call randommessage","segunda","end",
+/*	"customform opinion",
 	function(){
 		monogatari.setContentToSend(monogatari.getFormResult("opinion"));
 		return true;
-	},
-	"sendaction pabgob opinion",
+	},*/
+//	"sendaction pabgob opinion",
 	"show scene aereo",
-	function(){
+	"show character sylvie normal at left with fadeIn end-fadeOut",
+	"sylvie hello1",
+	"call primersitio",
+	"lo has conseguido",
+	'show character sylvie normal at right with fadeIn end-fadeOut',
+	"call segundositio",
+	'show character sylvie giggle at left with fadeIn end-fadeOut',
+	"goodbye",
+	
+/*	"sylvie Hola! me llamo Lara",
+	'show character sylvie normal at right with giggle transition 6s',
+	"show scene aereo",
+	"sylvie Déjame contarte una historia",
+	'show character sylvie giggle at left with giggle transition 6s',
+	"sylvie Érase una vez una chica normal",
+	"sylvie que se aburría mucho",
+	'show character sylvie surprise at left with giggle transition 6s',
+	"sylvie te lo juro, tía",*/
+
+/*	function(){
 		monogatari.setContentToSend("achieved");
 		return true;
 	},
@@ -236,7 +327,8 @@ monogatari.script ({	'Start': [
 			'Text': 'Lets go to the south',
 			'Do': 'jump SouthArea',
 		}
-	}},"end"]});
+	}},*/
+	"end"]});
 
 
 
